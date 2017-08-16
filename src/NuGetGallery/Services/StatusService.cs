@@ -20,7 +20,7 @@ namespace NuGetGallery
     {
         private readonly HttpClient _httpClient = new HttpClient();
         private readonly IEntitiesContext _entities;
-        private readonly IEnumerable<IFileStorageService> _fileStorageServices;
+        private readonly IEnumerable<ICloudStorageAvailabilityCheck> _cloudStorageAvailabilityChecks;
         private readonly IAppConfiguration _config;
 
         private const string Available = "Available";
@@ -32,11 +32,11 @@ namespace NuGetGallery
 
         public StatusService(
             IEntitiesContext entities,
-            IEnumerable<IFileStorageService> fileStorageServices,
+            IEnumerable<ICloudStorageAvailabilityCheck> cloudStorageAvailabilityChecks,
             IAppConfiguration config)
         {
             _entities = entities;
-            _fileStorageServices = fileStorageServices;
+            _cloudStorageAvailabilityChecks = cloudStorageAvailabilityChecks;
             _config = config;
         }
 
@@ -93,7 +93,7 @@ namespace NuGetGallery
             try
             {
                 // Check Storage Availability
-                var tasks = _fileStorageServices.Select(s => s.IsAvailableAsync());
+                var tasks = _cloudStorageAvailabilityChecks.Select(s => s.IsAvailableAsync());
                 var eachAvailable = await Task.WhenAll(tasks);
                 storageAvailable = eachAvailable.All(a => a);
             }

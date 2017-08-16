@@ -256,7 +256,7 @@ namespace NuGetGallery
                     break;
                 case StorageType.AzureStorage:
                     ConfigureForAzureStorage(builder, configuration);
-                    defaultAuditingService = GetAuditingServiceForAzureStorage(configuration);
+                    defaultAuditingService = GetAuditingServiceForAzureStorage(builder, configuration);
                     break;
             }
 
@@ -418,6 +418,7 @@ namespace NuGetGallery
                            (pi, ctx) => ctx.ResolveKeyed<ICloudBlobClient>(dependent.BindingKey)))
                         .AsSelf()
                         .As<IFileStorageService>()
+                        .As<ICloudStorageAvailabilityCheck>()
                         .SingleInstance()
                         .Keyed<IFileStorageService>(dependent.BindingKey);
 
@@ -443,6 +444,7 @@ namespace NuGetGallery
             builder.RegisterInstance(new CloudReportService(configuration.Current.AzureStorage_Statistics_ConnectionString, configuration.Current.AzureStorageReadAccessGeoRedundant))
                 .AsSelf()
                 .As<IReportService>()
+                .As<ICloudStorageAvailabilityCheck>()
                 .SingleInstance();
 
             // when running on Windows Azure, download counts come from the downloads.v1.json blob
@@ -463,7 +465,7 @@ namespace NuGetGallery
                 .SingleInstance();
         }
 
-        private static IAuditingService GetAuditingServiceForAzureStorage(IGalleryConfigurationService configuration)
+        private static IAuditingService GetAuditingServiceForAzureStorage(ContainerBuilder builder, IGalleryConfigurationService configuration)
         {
             string instanceId;
             try
@@ -477,10 +479,16 @@ namespace NuGetGallery
 
             var localIp = AuditActor.GetLocalIpAddressAsync().Result;
 
-            return new CloudAuditingService(instanceId, localIp, configuration.Current.AzureStorage_Auditing_ConnectionString, AuditActor.GetAspNetOnBehalfOfAsync);
+            var service = new CloudAuditingService(instanceId, localIp, configuration.Current.AzureStorage_Auditing_ConnectionString, AuditActor.GetAspNetOnBehalfOfAsync);
+
+            builder.RegisterInstance(service)
+                .As<ICloudStorageAvailabilityCheck>()
+                .SingleInstance();
+
+            return service;
         }
 
-        private static IAuditingService CombineServices(IEnumerable<IAuditingService> services)
+        private static IAuditingService CombineAuditingServices(IEnumerable<IAuditingService> services)
         {
             if (!services.Any())
             {
@@ -515,7 +523,7 @@ namespace NuGetGallery
                 services.Add(defaultAuditingService);
             }
 
-            var service = CombineServices(services);
+            var service = CombineAuditingServices(services);
 
             builder.RegisterInstance(service)
                 .AsSelf()
