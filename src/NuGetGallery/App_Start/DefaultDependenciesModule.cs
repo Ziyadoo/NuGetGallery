@@ -560,6 +560,8 @@ namespace NuGetGallery
         /// </summary>
         internal static IEnumerable<StorageDependent> GetStorageDependents(IAppConfiguration configuration)
         {
+            const string DefaultBindingKey = "Default";
+
             var dependents = new[]
             {
                 StorageDependent.Create<ContentService, IContentService>(
@@ -576,12 +578,12 @@ namespace NuGetGallery
             };
 
             var connectionStringToBindingKey = dependents
-                .GroupBy(d => d.AzureStorageConnectionString)
+                .GroupBy(d => d.AzureStorageConnectionString ?? DefaultBindingKey)
                 .ToDictionary(g => g.Key, g => string.Join(" ", g.Select(d => d.ImplementationType)));
 
             foreach (var dependent in dependents)
             {
-                var bindingKey = connectionStringToBindingKey[dependent.AzureStorageConnectionString];
+                var bindingKey = connectionStringToBindingKey[dependent.AzureStorageConnectionString ?? DefaultBindingKey];
                 yield return dependent.SetBindingKey(bindingKey);
             }
         }
