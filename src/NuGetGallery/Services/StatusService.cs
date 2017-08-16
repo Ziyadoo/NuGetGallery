@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Collections.Generic;
 using System.Data.Entity;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -19,7 +20,7 @@ namespace NuGetGallery
     {
         private readonly HttpClient _httpClient = new HttpClient();
         private readonly IEntitiesContext _entities;
-        private readonly IFileStorageService _fileStorageService;
+        private readonly IEnumerable<IFileStorageService> _fileStorageServices;
         private readonly IAppConfiguration _config;
 
         private const string Available = "Available";
@@ -31,11 +32,11 @@ namespace NuGetGallery
 
         public StatusService(
             IEntitiesContext entities,
-            IFileStorageService fileStorageService,
+            IEnumerable<IFileStorageService> fileStorageServices,
             IAppConfiguration config)
         {
             _entities = entities;
-            _fileStorageService = fileStorageService;
+            _fileStorageServices = fileStorageServices;
             _config = config;
         }
 
@@ -92,7 +93,9 @@ namespace NuGetGallery
             try
             {
                 // Check Storage Availability
-                storageAvailable = await _fileStorageService.IsAvailableAsync();
+                var tasks = _fileStorageServices.Select(s => s.IsAvailableAsync());
+                var eachAvailable = await Task.WhenAll(tasks);
+                storageAvailable = eachAvailable.All(a => a);
             }
             catch (Exception ex)
             {
