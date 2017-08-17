@@ -14,7 +14,7 @@ namespace NuGetGallery.Auditing
     /// <summary>
     /// Writes audit records to a specific container in the Cloud Storage Account provided
     /// </summary>
-    public class CloudAuditingService : AuditingService, ICloudStorageAvailabilityCheck
+    public class CloudAuditingService : AuditingService, ICloudStorageStatusDependency
     {
         public static readonly string DefaultContainerName = "auditing";
 
@@ -121,9 +121,9 @@ namespace NuGetGallery.Auditing
             }
         }
 
-        public async Task<bool> IsAvailableAsync()
+        public Task<bool> IsAvailableAsync()
         {
-            return await _auditContainer.ExistsAsync();
+            return _auditContainer.ExistsAsync();
         }
     }
 }

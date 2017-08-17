@@ -17,7 +17,7 @@ using NuGetGallery.Configuration;
 
 namespace NuGetGallery
 {
-    public class CloudBlobFileStorageService : IFileStorageService, ICloudStorageAvailabilityCheck
+    public class CloudBlobFileStorageService : IFileStorageService, ICloudStorageStatusDependency
     {
         private readonly ICloudBlobClient _client;
         private readonly IAppConfiguration _configuration;

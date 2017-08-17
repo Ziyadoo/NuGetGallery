@@ -9,7 +9,7 @@ namespace NuGetGallery
     /// Determines whether a cloud storage object (e.g. a blob container) is available. The purpose of this interface
     /// is to assess a gallery instance's connection to Azure Storage.
     /// </summary>
-    public interface ICloudStorageAvailabilityCheck
+    public interface ICloudStorageStatusDependency
     {
         Task<bool> IsAvailableAsync();
     }

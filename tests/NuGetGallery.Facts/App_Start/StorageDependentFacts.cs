@@ -10,7 +10,7 @@ using Xunit;
 
 namespace NuGetGallery
 {
-    public class DefaultDependenciesModuleFacts
+    public class StorageDependentFacts
     {
         [Fact]
         public void AllTypesDependingOnIFileStorageServiceAreReturnedByGetStorageDependents()
@@ -19,7 +19,7 @@ namespace NuGetGallery
             var config = GetConfiguration();
 
             // Act
-            var dependents = DefaultDependenciesModule.GetStorageDependents(config);
+            var dependents = StorageDependent.GetAll(config);
 
             // Assert
             var actual = new HashSet<Type>(dependents.Select(x => x.ImplementationType));
@@ -49,7 +49,7 @@ namespace NuGetGallery
             var config = GetConfiguration();
 
             // Act
-            var dependents = DefaultDependenciesModule.GetStorageDependents(config);
+            var dependents = StorageDependent.GetAll(config);
 
             // Assert
             var implementationToInterface = dependents.ToDictionary(x => x.ImplementationType, x => x.InterfaceType);
@@ -71,7 +71,7 @@ namespace NuGetGallery
             var config = GetConfiguration();
 
             // Act
-            var dependents = DefaultDependenciesModule.GetStorageDependents(config);
+            var dependents = StorageDependent.GetAll(config);
 
             // Assert
             var typeToConnectionString = dependents.ToDictionary(x => x.ImplementationType, x => x.AzureStorageConnectionString);
@@ -93,7 +93,7 @@ namespace NuGetGallery
             var config = mock.Object;
 
             // Act
-            var dependents = DefaultDependenciesModule.GetStorageDependents(config);
+            var dependents = StorageDependent.GetAll(config);
 
             // Assert
             var typeToBindingKey = dependents.ToDictionary(x => x.ImplementationType, x => x.BindingKey);

@@ -361,7 +361,7 @@ namespace NuGetGallery
                 .As<IFileStorageService>()
                 .SingleInstance();
 
-            foreach (var dependent in GetStorageDependents(configuration.Current))
+            foreach (var dependent in StorageDependent.GetAll(configuration.Current))
             {
                 builder.RegisterType(dependent.ImplementationType)
                     .AsSelf()
@@ -401,10 +401,16 @@ namespace NuGetGallery
 
         private static void ConfigureForAzureStorage(ContainerBuilder builder, IGalleryConfigurationService configuration)
         {
+            /// The goal here is to initialize a <see cref="ICloudBlobClient"/> and <see cref="IFileStorageService"/>
+            /// instance for each unique connection string. Each dependent of <see cref="IFileStorageService"/> (that
+            /// is, each service that has a <see cref="IFileStorageService"/> constructor parameter) is registered in
+            /// <see cref="StorageDependent.GetAll(IAppConfiguration)"/> and is grouped by the respective storage
+            /// connection string. Each group is given a binding key which refers to the appropriate instance of the
+            /// <see cref="IFileStorageService"/>.
             var completedBindingKeys = new HashSet<string>();
-            foreach (var dependent in GetStorageDependents(configuration.Current))
+            foreach (var dependent in StorageDependent.GetAll(configuration.Current))
             {
-                if (!completedBindingKeys.Contains(dependent.BindingKey))
+                if (completedBindingKeys.Add(dependent.BindingKey))
                 {
                     builder.RegisterInstance(new CloudBlobClientWrapper(dependent.AzureStorageConnectionString, configuration.Current.AzureStorageReadAccessGeoRedundant))
                        .AsSelf()
@@ -418,11 +424,9 @@ namespace NuGetGallery
                            (pi, ctx) => ctx.ResolveKeyed<ICloudBlobClient>(dependent.BindingKey)))
                         .AsSelf()
                         .As<IFileStorageService>()
-                        .As<ICloudStorageAvailabilityCheck>()
+                        .As<ICloudStorageStatusDependency>()
                         .SingleInstance()
                         .Keyed<IFileStorageService>(dependent.BindingKey);
-
-                    completedBindingKeys.Add(dependent.BindingKey);
                 }
 
                 builder.RegisterType(dependent.ImplementationType)
@@ -444,7 +448,7 @@ namespace NuGetGallery
             builder.RegisterInstance(new CloudReportService(configuration.Current.AzureStorage_Statistics_ConnectionString, configuration.Current.AzureStorageReadAccessGeoRedundant))
                 .AsSelf()
                 .As<IReportService>()
-                .As<ICloudStorageAvailabilityCheck>()
+                .As<ICloudStorageStatusDependency>()
                 .SingleInstance();
 
             // when running on Windows Azure, download counts come from the downloads.v1.json blob
@@ -482,7 +486,7 @@ namespace NuGetGallery
             var service = new CloudAuditingService(instanceId, localIp, configuration.Current.AzureStorage_Auditing_ConnectionString, AuditActor.GetAspNetOnBehalfOfAsync);
 
             builder.RegisterInstance(service)
-                .As<ICloudStorageAvailabilityCheck>()
+                .As<ICloudStorageStatusDependency>()
                 .SingleInstance();
 
             return service;
@@ -552,97 +556,6 @@ namespace NuGetGallery
             // Initialize the service on App_Start to avoid any performance degradation during initial requests.
             var siteName = configuration.GetSiteRoot(true);
             HostingEnvironment.QueueBackgroundWorkItem(async cancellationToken => await service.InitializeAsync(siteName, diagnostics, cancellationToken));
-        }
-
-        /// <summary>
-        /// Group the storage dependents by Azure Storage connection string then generate a binding key so that
-        /// <see cref="IFileStorageService"/> instances are shared.
-        /// </summary>
-        internal static IEnumerable<StorageDependent> GetStorageDependents(IAppConfiguration configuration)
-        {
-            const string DefaultBindingKey = "Default";
-
-            var dependents = new[]
-            {
-                StorageDependent.Create<ContentService, IContentService>(
-                    configuration.AzureStorage_Content_ConnectionString),
-
-                StorageDependent.Create<NuGetExeDownloaderService, INuGetExeDownloaderService>(
-                    configuration.AzureStorage_NuGetExe_ConnectionString),
-
-                StorageDependent.Create<PackageFileService, IPackageFileService>(
-                    configuration.AzureStorage_Packages_ConnectionString),
-
-                StorageDependent.Create<UploadFileService, IUploadFileService>(
-                    configuration.AzureStorage_Uploads_ConnectionString),
-            };
-
-            var connectionStringToBindingKey = dependents
-                .GroupBy(d => d.AzureStorageConnectionString ?? DefaultBindingKey)
-                .ToDictionary(g => g.Key, g => string.Join(" ", g.Select(d => d.ImplementationType)));
-
-            foreach (var dependent in dependents)
-            {
-                var bindingKey = connectionStringToBindingKey[dependent.AzureStorageConnectionString ?? DefaultBindingKey];
-                yield return dependent.SetBindingKey(bindingKey);
-            }
-        }
-        
-        /// <summary>
-        /// Represents a type that depends on <see cref="IFileStorageService"/>.
-        /// </summary>
-        internal class StorageDependent
-        {
-            /// <summary>
-            /// A key to be used by Autofac's <see cref="ResolutionExtensions.ResolveKeyed(IComponentContext, object, Type)"/>.
-            /// </summary>
-            public string BindingKey { get; }
-
-            /// <summary>
-            /// The connection string to be used for a <see cref="CloudBlobClientWrapper"/> instance.
-            /// </summary>
-            public string AzureStorageConnectionString { get; }
-
-            /// <summary>
-            /// The storage dependent's implementation type.
-            /// </summary>
-            public Type ImplementationType { get; }
-
-            /// <summary>
-            /// The storage dependent's interface tyep.
-            /// </summary>
-            public Type InterfaceType { get; }
-
-            private StorageDependent(
-                string bindingKey,
-                string azureStorageConnectionString,
-                Type implementationType,
-                Type interfaceType)
-            {
-                BindingKey = bindingKey;
-                AzureStorageConnectionString = azureStorageConnectionString;
-                ImplementationType = implementationType;
-                InterfaceType = interfaceType;
-            }
-
-            public StorageDependent SetBindingKey(string bindingKey)
-            {
-                return new StorageDependent(
-                    bindingKey,
-                    AzureStorageConnectionString,
-                    ImplementationType,
-                    InterfaceType);
-            }
-
-            public static StorageDependent Create<TImplementation, TInterface>(
-                string azureStorageConnectionString) where TImplementation : TInterface
-            {
-                return new StorageDependent(
-                    typeof(TImplementation).FullName,
-                    azureStorageConnectionString,
-                    typeof(TImplementation),
-                    typeof(TInterface));
-            }
         }
     }
 }

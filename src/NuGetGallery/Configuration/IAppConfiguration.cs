@@ -66,7 +66,7 @@ namespace NuGetGallery.Configuration
         string AzureStorage_Errors_ConnectionString { get; set; }
 
         /// <summary>
-        /// The Azure Storage connection string used downloading nuget.exe.
+        /// The Azure Storage connection string used for downloading nuget.exe.
         /// </summary>
         string AzureStorage_NuGetExe_ConnectionString { get; set; }
 
